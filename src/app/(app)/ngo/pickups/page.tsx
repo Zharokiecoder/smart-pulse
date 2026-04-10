@@ -27,6 +27,7 @@ export default function NgoPickupsPage() {
     const supabase = createClient();
     const [pickups, setPickups] = useState<Pickup[]>([]);
     const [tab, setTab] = useState('upcoming');
+    const [expanded, setExpanded] = useState<string | null>(null);
 
     useEffect(() => {
         if (!profile) return;
@@ -44,6 +45,29 @@ export default function NgoPickupsPage() {
     const upcoming = pickups.filter(p => ['pending', 'scheduled'].includes(p.status));
     const history = pickups.filter(p => ['completed', 'cancelled'].includes(p.status));
     const list = tab === 'upcoming' ? upcoming : history;
+
+    const handleMarkComplete = async (id: string) => {
+        await supabase.from('pickup_requests').update({ status: 'completed' }).eq('id', id);
+        setPickups(prev => prev.map(p => p.id === id ? { ...p, status: 'completed' } : p));
+    };
+
+    const handleReceipt = (p: Pickup) => {
+        const receipt = `
+=== FOODRESCUE PICKUP RECEIPT ===
+Date: ${p.pickup_date} at ${p.pickup_time}
+Food: ${p.listing?.name || 'N/A'}
+Quantity: ${p.listing?.quantity || 0} ${p.listing?.unit || ''}
+Donor: ${p.donor?.org_name || p.donor?.full_name || 'N/A'}
+Status: Completed
+================================`;
+        const blob = new Blob([receipt], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `receipt-${p.id.slice(0, 8)}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
 
     return (
         <div className="anim">
@@ -68,27 +92,44 @@ export default function NgoPickupsPage() {
                     </Card>
                 ) : (
                     list.map(p => (
-                        <Card key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 16 }} className="dash-card-row">
-                            <div style={{ width: 52, height: 52, borderRadius: 14, background: C.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
-                                {categoryEmojis[p.listing?.category || ''] || '📦'}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                    <span style={{ fontSize: 14, fontWeight: 600, color: C.greenDeep }}>{p.listing?.name}</span>
-                                    <Badge color={statusColors[p.status]}>{statusLabels[p.status]}</Badge>
+                        <React.Fragment key={p.id}>
+                            <Card style={{ display: 'flex', alignItems: 'center', gap: 16 }} className="dash-card-row">
+                                <div style={{ width: 52, height: 52, borderRadius: 14, background: C.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
+                                    {categoryEmojis[p.listing?.category || ''] || '📦'}
                                 </div>
-                                <div className="meta-row" style={{ display: 'flex', gap: 14 }}>
-                                    <span style={{ fontSize: 12, color: C.textMuted }}>⚖️ {p.listing?.quantity} {p.listing?.unit}</span>
-                                    <span style={{ fontSize: 12, color: C.textMuted }}>🏪 {p.donor?.org_name || p.donor?.full_name}</span>
-                                    <span style={{ fontSize: 12, color: C.greenForest }}>📅 {p.pickup_date} · {p.pickup_time}</span>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <span style={{ fontSize: 14, fontWeight: 600, color: C.greenDeep }}>{p.listing?.name}</span>
+                                        <Badge color={statusColors[p.status]}>{statusLabels[p.status]}</Badge>
+                                    </div>
+                                    <div className="meta-row" style={{ display: 'flex', gap: 14 }}>
+                                        <span style={{ fontSize: 12, color: C.textMuted }}>⚖️ {p.listing?.quantity} {p.listing?.unit}</span>
+                                        <span style={{ fontSize: 12, color: C.textMuted }}>🏪 {p.donor?.org_name || p.donor?.full_name}</span>
+                                        <span style={{ fontSize: 12, color: C.greenForest }}>📅 {p.pickup_date} · {p.pickup_time}</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                {p.status === 'scheduled' && <Btn size="sm">View Details</Btn>}
-                                {p.status === 'pending' && <Btn size="sm" variant="secondary">Awaiting Confirm</Btn>}
-                                {p.status === 'completed' && <Btn size="sm" variant="secondary">Receipt</Btn>}
-                            </div>
-                        </Card>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {p.status === 'scheduled' && (
+                                        <>
+                                            <Btn size="sm" onClick={() => setExpanded(expanded === p.id ? null : p.id)}>{expanded === p.id ? 'Hide' : 'Details'}</Btn>
+                                            <Btn size="sm" variant="secondary" onClick={() => handleMarkComplete(p.id)}>✓ Complete</Btn>
+                                        </>
+                                    )}
+                                    {p.status === 'pending' && <Btn size="sm" variant="secondary" onClick={() => setExpanded(expanded === p.id ? null : p.id)}>Awaiting Confirm</Btn>}
+                                    {p.status === 'completed' && <Btn size="sm" variant="secondary" onClick={() => handleReceipt(p)}>📥 Receipt</Btn>}
+                                </div>
+                            </Card>
+                            {expanded === p.id && (
+                                <Card style={{ marginTop: -10, borderTop: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0, padding: '12px 20px', background: C.creamDark }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+                                        <div><span style={{ color: C.textMuted }}>📅 Date:</span> <span style={{ color: C.greenDeep }}>{p.pickup_date} at {p.pickup_time}</span></div>
+                                        <div><span style={{ color: C.textMuted }}>🏪 Donor:</span> <span style={{ color: C.greenDeep }}>{p.donor?.org_name || p.donor?.full_name}</span></div>
+                                        <div><span style={{ color: C.textMuted }}>📦 Food:</span> <span style={{ color: C.greenDeep }}>{p.listing?.name} · {p.listing?.quantity} {p.listing?.unit}</span></div>
+                                        <div><span style={{ color: C.textMuted }}>📋 Status:</span> <Badge color={statusColors[p.status]}>{statusLabels[p.status]}</Badge></div>
+                                    </div>
+                                </Card>
+                            )}
+                        </React.Fragment>
                     ))
                 )}
             </div>

@@ -20,6 +20,7 @@ interface FoodListing {
 
 interface PickupRequest {
     id: string;
+    listing_id: string;
     pickup_date: string;
     pickup_time: string;
     status: string;
@@ -92,13 +93,11 @@ export default function DonorDashboard() {
 
     const handlePickupAction = async (pickupId: string, action: 'scheduled' | 'cancelled') => {
         await supabase.from('pickup_requests').update({ status: action }).eq('id', pickupId);
-        // Refresh
         setPickups(prev => prev.map(p => p.id === pickupId ? { ...p, status: action } : p));
         if (action === 'scheduled') {
             const pickup = pickups.find(p => p.id === pickupId);
-            if (pickup?.listing) {
-                // Also update listing status
-                await supabase.from('food_listings').update({ status: 'claimed' }).eq('name', pickup.listing.name);
+            if (pickup?.listing_id) {
+                await supabase.from('food_listings').update({ status: 'claimed' }).eq('id', pickup.listing_id);
             }
         }
     };

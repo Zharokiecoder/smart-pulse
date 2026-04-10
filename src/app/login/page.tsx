@@ -37,6 +37,21 @@ export default function LoginPage() {
         });
     };
 
+    const handleForgotPassword = async () => {
+        const resetEmail = email || prompt('Enter your email address:');
+        if (!resetEmail) return;
+        setError('');
+        const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+            redirectTo: `${window.location.origin}/auth/callback`,
+        });
+        if (error) {
+            setError(error.message);
+        } else {
+            setError('');
+            alert('Password reset link sent! Check your email inbox.');
+        }
+    };
+
     return (
         <div className="auth-page" style={{ display: 'flex', minHeight: '100vh' }}>
             {/* Left Panel */}
@@ -110,7 +125,7 @@ export default function LoginPage() {
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                     <label style={{ fontSize: 13, fontWeight: 500, color: C.greenDeep }}>Password</label>
-                                    <button style={{ background: 'none', border: 'none', color: C.greenForest, fontSize: 12 }}>Forgot password?</button>
+                                    <button onClick={handleForgotPassword} style={{ background: 'none', border: 'none', color: C.greenForest, fontSize: 12, cursor: 'pointer' }}>Forgot password?</button>
                                 </div>
                                 <div style={{ position: 'relative' }}>
                                     <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>🔒</span>

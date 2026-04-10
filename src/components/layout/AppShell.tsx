@@ -1,13 +1,41 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { createClient } from '@/lib/supabase/client';
 import Sidebar from '@/components/layout/Sidebar';
 import { C } from '@/lib/theme';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
     const { profile, loading } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const supabase = createClient();
+
+    useEffect(() => {
+        if (!profile) return;
+        const fetchUnread = async () => {
+            const { count } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', profile.id)
+                .eq('read', false);
+            setUnreadCount(count || 0);
+        };
+        fetchUnread();
+
+        const channel = supabase
+            .channel('appshell-notifs')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
+                () => setUnreadCount(prev => prev + 1)
+            )
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
+                () => fetchUnread()
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [profile, supabase]);
 
     if (loading) {
         return (
@@ -54,7 +82,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Sidebar
                 role={profile?.role || 'donor'}
                 userName={profile?.full_name || 'User'}
-                unreadCount={0}
+                unreadCount={unreadCount}
                 isOpen={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
             />

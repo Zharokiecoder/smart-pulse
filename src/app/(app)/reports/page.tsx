@@ -11,13 +11,14 @@ export default function ReportsPage() {
     const supabase = createClient();
     const [stats, setStats] = useState({ rescued: 0, pickups: 0, donors: 0, peopleFed: 0 });
     const [catData, setCatData] = useState<{ cat: string; count: number }[]>([]);
+    const [monthData, setMonthData] = useState<number[]>(new Array(12).fill(0));
 
     useEffect(() => {
         if (!profile) return;
         const fetchReports = async () => {
             const { data: pickups } = await supabase
                 .from('pickup_requests')
-                .select('status, listing:food_listings(quantity, category)')
+                .select('status, created_at, listing:food_listings(quantity, category)')
                 .eq('ngo_id', profile.id);
 
             if (pickups) {
@@ -43,13 +44,49 @@ export default function ReportsPage() {
                 });
                 const total = Object.values(catMap).reduce((s, v) => s + v, 0) || 1;
                 setCatData(Object.entries(catMap).map(([cat, count]) => ({ cat, count: Math.round((count / total) * 100) })).sort((a, b) => b.count - a.count));
+
+                // Monthly aggregation from real data
+                const monthly = new Array(12).fill(0);
+                completed.forEach(p => {
+                    const d = new Date((p as Record<string, unknown>).created_at as string);
+                    const l = p.listing as unknown as { quantity: number } | null;
+                    if (d.getFullYear() === new Date().getFullYear()) {
+                        monthly[d.getMonth()] += l?.quantity || 0;
+                    }
+                });
+                setMonthData(monthly);
             }
         };
         fetchReports();
     }, [profile, supabase]);
 
+    const exportCSV = () => {
+        const rows = [
+            ['FoodRescue Report'],
+            [],
+            ['Metric', 'Value'],
+            ['Total Food Rescued (kg)', stats.rescued],
+            ['Successful Pickups', stats.pickups],
+            ['Donors Partnered', stats.donors],
+            ['People Fed (est.)', stats.peopleFed],
+            [],
+            ['Category', 'Percentage'],
+            ...catData.map(c => [c.cat, `${c.count}%`]),
+            [],
+            ['Month', 'Food Rescued (kg)'],
+            ...months.map((m, i) => [m, monthData[i]]),
+        ];
+        const csv = rows.map(r => (r as (string | number)[]).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `foodrescue-report-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthData = [30, 45, 38, 60, 55, 72, 68, 80, 90, 75, 85, stats.rescued || 95];
     const maxVal = Math.max(...monthData, 1);
     const currentMonth = new Date().getMonth();
 
@@ -64,7 +101,7 @@ export default function ReportsPage() {
 
     return (
         <div className="anim">
-            <TopBar title="Reports & Analytics" subtitle="Track your food rescue impact" actions={<Btn variant="secondary" size="sm">📥 Export Report</Btn>} />
+            <TopBar title="Reports & Analytics" subtitle="Track your food rescue impact" actions={<Btn variant="secondary" size="sm" onClick={exportCSV}>📥 Export Report</Btn>} />
 
             <div className="dash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
                 {topStats.map(s => (

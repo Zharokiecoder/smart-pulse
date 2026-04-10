@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
@@ -18,8 +18,39 @@ export default function ProfilePage() {
     const [phone, setPhone] = useState(profile?.phone || '');
     const [bio, setBio] = useState(profile?.bio || '');
     const [saving, setSaving] = useState(false);
+    const [profileStats, setProfileStats] = useState({ listings: 0, completed: 0, rescued: 0 });
 
     const isDonor = profile?.role === 'donor';
+
+    useEffect(() => {
+        if (!profile) return;
+        const fetchStats = async () => {
+            if (isDonor) {
+                const { data: listings } = await supabase.from('food_listings').select('quantity, status').eq('donor_id', profile.id);
+                if (listings) {
+                    setProfileStats({
+                        listings: listings.length,
+                        completed: listings.filter(l => l.status === 'picked_up').length,
+                        rescued: listings.filter(l => l.status === 'picked_up').reduce((s, l) => s + (l.quantity || 0), 0),
+                    });
+                }
+            } else {
+                const { data: pickups } = await supabase.from('pickup_requests').select('status, listing:food_listings(quantity)').eq('ngo_id', profile.id);
+                if (pickups) {
+                    const completed = pickups.filter(p => p.status === 'completed');
+                    setProfileStats({
+                        listings: pickups.length,
+                        completed: completed.length,
+                        rescued: completed.reduce((s, p) => {
+                            const l = p.listing as unknown as { quantity: number } | null;
+                            return s + (l?.quantity || 0);
+                        }, 0),
+                    });
+                }
+            }
+        };
+        fetchStats();
+    }, [profile, supabase, isDonor]);
 
     const handleSave = async () => {
         if (!profile) return;
@@ -42,6 +73,18 @@ export default function ProfilePage() {
     };
 
     const initials = (profile?.full_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+    const statItems = isDonor
+        ? [
+            { label: 'Total Listings', val: profileStats.listings, icon: '📦' },
+            { label: 'Picked Up', val: profileStats.completed, icon: '✅' },
+            { label: 'Food Rescued (kg)', val: profileStats.rescued, icon: '⚖️' },
+        ]
+        : [
+            { label: 'Total Pickups', val: profileStats.listings, icon: '🚚' },
+            { label: 'Completed', val: profileStats.completed, icon: '✅' },
+            { label: 'Food Collected (kg)', val: profileStats.rescued, icon: '⚖️' },
+        ];
 
     return (
         <div className="anim">
@@ -70,9 +113,14 @@ export default function ProfilePage() {
 
                     <Card>
                         <h3 style={{ fontSize: 14, fontWeight: 600, color: C.greenDeep, marginBottom: 12 }}>📊 Your Stats</h3>
-                        <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
-                            Stats are calculated from your activity on FoodRescue. Keep using the platform to see your impact grow!
-                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {statItems.map(s => (
+                                <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.creamDark}` }}>
+                                    <span style={{ fontSize: 13, color: C.textMuted }}>{s.icon} {s.label}</span>
+                                    <span style={{ fontSize: 16, fontWeight: 700, color: C.greenDeep }}>{s.val}</span>
+                                </div>
+                            ))}
+                        </div>
                     </Card>
                 </div>
 
