@@ -33,7 +33,8 @@ export default function PickupsPage() {
             if (data) setPickups(data as unknown as PickupRequest[]);
         };
         fetchPickups();
-    }, [profile, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile]);
 
     const handleAction = async (id: string, status: 'scheduled' | 'cancelled') => {
         await supabase.from('pickup_requests').update({ status }).eq('id', id);

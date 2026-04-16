@@ -63,7 +63,8 @@ export default function NgoDashboard() {
             }
         };
         fetchData();
-    }, [profile, supabase, router]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile, router]);
 
     const ngoStatCards = [
         { label: 'Available Near Me', value: stats.available, icon: '📦', color: C.greenForest },

@@ -35,7 +35,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [profile, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile]);
 
     if (loading) {
         return (

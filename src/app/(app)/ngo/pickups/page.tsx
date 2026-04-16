@@ -40,7 +40,8 @@ export default function NgoPickupsPage() {
             if (data) setPickups(data as unknown as Pickup[]);
         };
         fetchPickups();
-    }, [profile, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile]);
 
     const upcoming = pickups.filter(p => ['pending', 'scheduled'].includes(p.status));
     const history = pickups.filter(p => ['completed', 'cancelled'].includes(p.status));

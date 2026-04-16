@@ -46,7 +46,8 @@ export default function NotificationsPage() {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [profile, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile]);
 
     const markAllRead = async () => {
         await supabase.from('notifications').update({ read: true }).eq('user_id', profile?.id).eq('read', false);

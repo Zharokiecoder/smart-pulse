@@ -40,7 +40,8 @@ export default function SchedulePickupPage() {
             if (data) setListing(data as unknown as FoodListing);
         };
         if (params.id) fetchListing();
-    }, [params.id, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.id]);
 
     const handleConfirm = async () => {
         if (!date || !time || !listing || !profile) return;

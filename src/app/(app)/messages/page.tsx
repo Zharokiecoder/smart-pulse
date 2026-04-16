@@ -81,7 +81,8 @@ export default function MessagesPage() {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [active, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

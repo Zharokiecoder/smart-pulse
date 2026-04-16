@@ -42,7 +42,8 @@ export default function BrowseFoodPage() {
             if (data) setFood(data as unknown as FoodItem[]);
         };
         fetchFood();
-    }, [supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const filtered = food.filter(f =>
         (catFilter === 'All' || f.category === catFilter) &&

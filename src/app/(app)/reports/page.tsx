@@ -58,7 +58,8 @@ export default function ReportsPage() {
             }
         };
         fetchReports();
-    }, [profile, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile]);
 
     const exportCSV = () => {
         const rows = [

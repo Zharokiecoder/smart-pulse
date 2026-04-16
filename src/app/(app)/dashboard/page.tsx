@@ -82,7 +82,8 @@ export default function DonorDashboard() {
         };
 
         fetchData();
-    }, [profile, supabase, router]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile, router]);
 
     const statCards = [
         { label: 'Active Listings', value: stats.active, icon: '📦', color: C.greenForest, delta: 'Currently live' },

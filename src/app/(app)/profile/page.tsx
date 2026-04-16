@@ -50,7 +50,8 @@ export default function ProfilePage() {
             }
         };
         fetchStats();
-    }, [profile, supabase, isDonor]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile, isDonor]);
 
     const handleSave = async () => {
         if (!profile) return;
