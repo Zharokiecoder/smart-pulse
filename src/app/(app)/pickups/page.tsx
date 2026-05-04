@@ -8,6 +8,7 @@ import { TopBar, Card, Btn, Badge, Avatar } from '@/components/ui';
 
 interface PickupRequest {
     id: string;
+    listing_id: string;
     pickup_date: string;
     pickup_time: string;
     status: string;
@@ -25,12 +26,16 @@ export default function PickupsPage() {
     useEffect(() => {
         if (!profile) return;
         const fetchPickups = async () => {
-            const { data } = await supabase
-                .from('pickup_requests')
-                .select('*, listing:food_listings(name, quantity, unit), ngo:profiles!pickup_requests_ngo_id_fkey(full_name, org_name)')
-                .eq('donor_id', profile.id)
-                .order('created_at', { ascending: false });
-            if (data) setPickups(data as unknown as PickupRequest[]);
+            try {
+                const { data } = await supabase
+                    .from('pickup_requests')
+                    .select('*, listing:food_listings(name, quantity, unit), ngo:profiles!pickup_requests_ngo_id_fkey(full_name, org_name)')
+                    .eq('donor_id', profile.id)
+                    .order('created_at', { ascending: false });
+                if (data) setPickups(data as unknown as PickupRequest[]);
+            } catch {
+                // Fetch failed
+            }
         };
         fetchPickups();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -39,6 +44,14 @@ export default function PickupsPage() {
     const handleAction = async (id: string, status: 'scheduled' | 'cancelled') => {
         await supabase.from('pickup_requests').update({ status }).eq('id', id);
         setPickups(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+
+        // Update the food listing status when accepting a pickup
+        if (status === 'scheduled') {
+            const pickup = pickups.find(p => p.id === id);
+            if (pickup?.listing_id) {
+                await supabase.from('food_listings').update({ status: 'claimed' }).eq('id', pickup.listing_id);
+            }
+        }
     };
 
     const counts = {

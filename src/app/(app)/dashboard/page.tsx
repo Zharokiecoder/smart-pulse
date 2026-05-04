@@ -52,33 +52,37 @@ export default function DonorDashboard() {
         }
 
         const fetchData = async () => {
-            // Fetch listings
-            const { data: listingsData } = await supabase
-                .from('food_listings')
-                .select('*')
-                .eq('donor_id', profile.id)
-                .order('created_at', { ascending: false })
-                .limit(5);
+            try {
+                // Fetch listings
+                const { data: listingsData } = await supabase
+                    .from('food_listings')
+                    .select('*')
+                    .eq('donor_id', profile.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
 
-            if (listingsData) {
-                const typedListings = listingsData as FoodListing[];
-                setListings(typedListings);
-                const active = typedListings.filter((l: FoodListing) => l.status === 'available').length;
-                const total = listingsData.length;
-                const completed = typedListings.filter((l: FoodListing) => l.status === 'picked_up').length;
-                const rescued = typedListings.filter((l: FoodListing) => l.status === 'picked_up').reduce((sum: number, l: FoodListing) => sum + l.quantity, 0);
-                setStats({ active, total, completed, rescued });
+                if (listingsData) {
+                    const typedListings = listingsData as FoodListing[];
+                    setListings(typedListings);
+                    const active = typedListings.filter((l: FoodListing) => l.status === 'available').length;
+                    const total = listingsData.length;
+                    const completed = typedListings.filter((l: FoodListing) => l.status === 'picked_up').length;
+                    const rescued = typedListings.filter((l: FoodListing) => l.status === 'picked_up').reduce((sum: number, l: FoodListing) => sum + l.quantity, 0);
+                    setStats({ active, total, completed, rescued });
+                }
+
+                // Fetch pickup requests
+                const { data: pickupsData } = await supabase
+                    .from('pickup_requests')
+                    .select(`*, listing:food_listings(name, quantity, unit), ngo:profiles!pickup_requests_ngo_id_fkey(full_name, org_name)`)
+                    .eq('donor_id', profile.id)
+                    .order('created_at', { ascending: false })
+                    .limit(3);
+
+                if (pickupsData) setPickups(pickupsData as unknown as PickupRequest[]);
+            } catch {
+                // Dashboard data fetch failed — show empty state
             }
-
-            // Fetch pickup requests
-            const { data: pickupsData } = await supabase
-                .from('pickup_requests')
-                .select(`*, listing:food_listings(name, quantity, unit), ngo:profiles!pickup_requests_ngo_id_fkey(full_name, org_name)`)
-                .eq('donor_id', profile.id)
-                .order('created_at', { ascending: false })
-                .limit(3);
-
-            if (pickupsData) setPickups(pickupsData as unknown as PickupRequest[]);
         };
 
         fetchData();

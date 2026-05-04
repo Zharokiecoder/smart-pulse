@@ -34,12 +34,16 @@ export default function BrowseFoodPage() {
 
     useEffect(() => {
         const fetchFood = async () => {
-            const { data } = await supabase
-                .from('food_listings')
-                .select('*, donor:profiles!food_listings_donor_id_fkey(full_name, org_name)')
-                .eq('status', 'available')
-                .order('created_at', { ascending: false });
-            if (data) setFood(data as unknown as FoodItem[]);
+            try {
+                const { data } = await supabase
+                    .from('food_listings')
+                    .select('*, donor:profiles!food_listings_donor_id_fkey(full_name, org_name)')
+                    .eq('status', 'available')
+                    .order('created_at', { ascending: false });
+                if (data) setFood(data as unknown as FoodItem[]);
+            } catch {
+                // Fetch failed — show empty state
+            }
         };
         fetchFood();
         // eslint-disable-next-line react-hooks/exhaustive-deps

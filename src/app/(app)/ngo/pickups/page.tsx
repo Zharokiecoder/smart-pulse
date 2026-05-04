@@ -14,6 +14,7 @@ const categoryEmojis: Record<string, string> = {
 
 interface Pickup {
     id: string;
+    listing_id: string;
     pickup_date: string;
     pickup_time: string;
     status: string;
@@ -32,12 +33,16 @@ export default function NgoPickupsPage() {
     useEffect(() => {
         if (!profile) return;
         const fetchPickups = async () => {
-            const { data } = await supabase
-                .from('pickup_requests')
-                .select('*, listing:food_listings(name, category, quantity, unit), donor:profiles!pickup_requests_donor_id_fkey(full_name, org_name)')
-                .eq('ngo_id', profile.id)
-                .order('created_at', { ascending: false });
-            if (data) setPickups(data as unknown as Pickup[]);
+            try {
+                const { data } = await supabase
+                    .from('pickup_requests')
+                    .select('*, listing:food_listings(name, category, quantity, unit), donor:profiles!pickup_requests_donor_id_fkey(full_name, org_name)')
+                    .eq('ngo_id', profile.id)
+                    .order('created_at', { ascending: false });
+                if (data) setPickups(data as unknown as Pickup[]);
+            } catch {
+                // Fetch failed
+            }
         };
         fetchPickups();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,6 +55,12 @@ export default function NgoPickupsPage() {
     const handleMarkComplete = async (id: string) => {
         await supabase.from('pickup_requests').update({ status: 'completed' }).eq('id', id);
         setPickups(prev => prev.map(p => p.id === id ? { ...p, status: 'completed' } : p));
+
+        // Also update the food listing status to 'picked_up'
+        const pickup = pickups.find(p => p.id === id);
+        if (pickup?.listing_id) {
+            await supabase.from('food_listings').update({ status: 'picked_up' }).eq('id', pickup.listing_id);
+        }
     };
 
     const handleReceipt = (p: Pickup) => {

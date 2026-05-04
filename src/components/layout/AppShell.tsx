@@ -10,17 +10,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const { profile, loading } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [forceReady, setForceReady] = useState(false);
     const supabase = createClient();
+
+    // Fallback: never show spinner for more than 8 seconds
+    useEffect(() => {
+        if (!loading) return;
+        const timer = setTimeout(() => setForceReady(true), 8000);
+        return () => clearTimeout(timer);
+    }, [loading]);
 
     useEffect(() => {
         if (!profile) return;
         const fetchUnread = async () => {
-            const { count } = await supabase
-                .from('notifications')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', profile.id)
-                .eq('read', false);
-            setUnreadCount(count || 0);
+            try {
+                const { count } = await supabase
+                    .from('notifications')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', profile.id)
+                    .eq('read', false);
+                setUnreadCount(count || 0);
+            } catch {
+                // Notification count fetch failed — not critical
+            }
         };
         fetchUnread();
 
@@ -38,7 +50,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile]);
 
-    if (loading) {
+    if (loading && !forceReady) {
         return (
             <div style={{
                 width: '100%',

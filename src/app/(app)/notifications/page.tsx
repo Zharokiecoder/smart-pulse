@@ -28,12 +28,16 @@ export default function NotificationsPage() {
     useEffect(() => {
         if (!profile) return;
         const fetchNotifs = async () => {
-            const { data } = await supabase
-                .from('notifications')
-                .select('*')
-                .eq('user_id', profile.id)
-                .order('created_at', { ascending: false });
-            if (data) setNotifs(data);
+            try {
+                const { data } = await supabase
+                    .from('notifications')
+                    .select('*')
+                    .eq('user_id', profile.id)
+                    .order('created_at', { ascending: false });
+                if (data) setNotifs(data);
+            } catch {
+                // Fetch failed
+            }
         };
         fetchNotifs();
 

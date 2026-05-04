@@ -65,16 +65,30 @@ export default function PostFoodPage() {
     // --- Upload images to Supabase Storage ---
     const uploadImages = async (): Promise<string[]> => {
         if (imageFiles.length === 0) return [];
-        const urls: string[] = [];
-        for (const file of imageFiles) {
+
+        const uploadFile = async (file: File): Promise<string> => {
             const ext = file.name.split('.').pop();
             const path = `${profile?.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-            const { error: uploadError } = await supabase.storage.from('food-photos').upload(path, file, { upsert: false });
+
+            // Add a 30-second timeout per file upload
+            const uploadPromise = supabase.storage.from('food-photos').upload(path, file, {
+                upsert: false,
+                contentType: file.type,
+            });
+
+            const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`Upload timed out for "${file.name}"`)), 30000)
+            );
+
+            const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
             if (uploadError) throw new Error(`Failed to upload "${file.name}": ${uploadError.message}`);
+
             const { data: urlData } = supabase.storage.from('food-photos').getPublicUrl(path);
-            urls.push(urlData.publicUrl);
-        }
-        return urls;
+            return urlData.publicUrl;
+        };
+
+        // Upload all files in parallel for speed
+        return Promise.all(imageFiles.map(uploadFile));
     };
 
     // --- Submit ---
@@ -88,7 +102,19 @@ export default function PostFoodPage() {
 
         try {
             // Upload photos first
-            const photoUrls = await uploadImages();
+            let photoUrls: string[] = [];
+            try {
+                photoUrls = await uploadImages();
+            } catch (err: unknown) {
+                // If photo upload fails, still allow posting without photos
+                console.error('Photo upload failed:', err);
+                if (imageFiles.length > 0) {
+                    setError(err instanceof Error ? err.message : 'Photo upload failed. Posting without photos.');
+                    // Wait 2 seconds so user sees the message, then continue without photos
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    setError('');
+                }
+            }
 
             const { error: insertError } = await supabase.from('food_listings').insert({
                 donor_id: profile?.id,
@@ -113,7 +139,7 @@ export default function PostFoodPage() {
                 router.push('/donations');
             }
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Something went wrong uploading photos');
+            setError(err instanceof Error ? err.message : 'Something went wrong');
             setLoading(false);
         }
     };

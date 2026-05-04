@@ -16,45 +16,49 @@ export default function ReportsPage() {
     useEffect(() => {
         if (!profile) return;
         const fetchReports = async () => {
-            const { data: pickups } = await supabase
-                .from('pickup_requests')
-                .select('status, created_at, listing:food_listings(quantity, category)')
-                .eq('ngo_id', profile.id);
+            try {
+                const { data: pickups } = await supabase
+                    .from('pickup_requests')
+                    .select('status, created_at, donor_id, listing:food_listings(quantity, category)')
+                    .eq('ngo_id', profile.id);
 
-            if (pickups) {
-                const completed = pickups.filter(p => p.status === 'completed');
-                const rescued = completed.reduce((sum, p) => {
-                    const l = p.listing as unknown as { quantity: number } | null;
-                    return sum + (l?.quantity || 0);
-                }, 0);
-                const uniqueDonors = new Set(pickups.map(p => (p as Record<string, unknown>).donor_id)).size;
+                if (pickups) {
+                    const completed = pickups.filter(p => p.status === 'completed');
+                    const rescued = completed.reduce((sum, p) => {
+                        const l = p.listing as unknown as { quantity: number } | null;
+                        return sum + (l?.quantity || 0);
+                    }, 0);
+                    const uniqueDonors = new Set(pickups.map(p => p.donor_id)).size;
 
-                setStats({
-                    rescued,
-                    pickups: completed.length,
-                    donors: uniqueDonors || 0,
-                    peopleFed: Math.round(rescued * 2),
-                });
+                    setStats({
+                        rescued,
+                        pickups: completed.length,
+                        donors: uniqueDonors || 0,
+                        peopleFed: Math.round(rescued * 2),
+                    });
 
-                // Category breakdown
-                const catMap: Record<string, number> = {};
-                completed.forEach(p => {
-                    const l = p.listing as unknown as { category: string; quantity: number } | null;
-                    if (l) catMap[l.category] = (catMap[l.category] || 0) + l.quantity;
-                });
-                const total = Object.values(catMap).reduce((s, v) => s + v, 0) || 1;
-                setCatData(Object.entries(catMap).map(([cat, count]) => ({ cat, count: Math.round((count / total) * 100) })).sort((a, b) => b.count - a.count));
+                    // Category breakdown
+                    const catMap: Record<string, number> = {};
+                    completed.forEach(p => {
+                        const l = p.listing as unknown as { category: string; quantity: number } | null;
+                        if (l) catMap[l.category] = (catMap[l.category] || 0) + l.quantity;
+                    });
+                    const total = Object.values(catMap).reduce((s, v) => s + v, 0) || 1;
+                    setCatData(Object.entries(catMap).map(([cat, count]) => ({ cat, count: Math.round((count / total) * 100) })).sort((a, b) => b.count - a.count));
 
-                // Monthly aggregation from real data
-                const monthly = new Array(12).fill(0);
-                completed.forEach(p => {
-                    const d = new Date((p as Record<string, unknown>).created_at as string);
-                    const l = p.listing as unknown as { quantity: number } | null;
-                    if (d.getFullYear() === new Date().getFullYear()) {
-                        monthly[d.getMonth()] += l?.quantity || 0;
-                    }
-                });
-                setMonthData(monthly);
+                    // Monthly aggregation from real data
+                    const monthly = new Array(12).fill(0);
+                    completed.forEach(p => {
+                        const d = new Date(p.created_at as string);
+                        const l = p.listing as unknown as { quantity: number } | null;
+                        if (d.getFullYear() === new Date().getFullYear()) {
+                            monthly[d.getMonth()] += l?.quantity || 0;
+                        }
+                    });
+                    setMonthData(monthly);
+                }
+            } catch {
+                // Reports fetch failed — show empty state
             }
         };
         fetchReports();

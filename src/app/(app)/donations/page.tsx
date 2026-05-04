@@ -37,15 +37,53 @@ export default function MyDonationsPage() {
 
     useEffect(() => {
         if (!profile) return;
-        const fetchDonations = async () => {
-            const { data } = await supabase
-                .from('food_listings')
-                .select('*')
-                .eq('donor_id', profile.id)
-                .order('created_at', { ascending: false });
-            if (data) setDonations(data);
+
+        const syncAndFetchDonations = async () => {
+            try {
+                // Step 1: Sync food listing statuses based on pickup requests
+                // This fixes any listings where status is out of sync with their pickup requests
+                const { data: pickups } = await supabase
+                    .from('pickup_requests')
+                    .select('listing_id, status')
+                    .eq('donor_id', profile.id);
+
+                if (pickups && pickups.length > 0) {
+                    // Build a map: listing_id → best pickup status
+                    const listingStatusMap = new Map<string, string>();
+                    for (const p of pickups) {
+                        const current = listingStatusMap.get(p.listing_id);
+                        // Priority: completed > scheduled/pending > cancelled
+                        if (p.status === 'completed') {
+                            listingStatusMap.set(p.listing_id, 'picked_up');
+                        } else if ((p.status === 'scheduled' || p.status === 'pending') && current !== 'picked_up') {
+                            listingStatusMap.set(p.listing_id, 'claimed');
+                        }
+                    }
+
+                    // Update any food listings that are out of sync
+                    for (const [listingId, correctStatus] of listingStatusMap) {
+                        await supabase
+                            .from('food_listings')
+                            .update({ status: correctStatus })
+                            .eq('id', listingId)
+                            .eq('donor_id', profile.id)
+                            .neq('status', correctStatus); // Only update if status differs
+                    }
+                }
+
+                // Step 2: Fetch the (now-synced) donations
+                const { data } = await supabase
+                    .from('food_listings')
+                    .select('*')
+                    .eq('donor_id', profile.id)
+                    .order('created_at', { ascending: false });
+                if (data) setDonations(data);
+            } catch {
+                // Fetch failed
+            }
         };
-        fetchDonations();
+
+        syncAndFetchDonations();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile]);
 
@@ -78,9 +116,31 @@ export default function MyDonationsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {filtered.length === 0 ? (
                     <Card style={{ textAlign: 'center', padding: 40 }}>
-                        <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
-                        <p style={{ fontSize: 14, color: C.textMuted }}>No donations found. Post your first surplus food!</p>
-                        <div style={{ marginTop: 16 }}><Btn onClick={() => router.push('/post')}>Post Surplus Food</Btn></div>
+                        {filter === 'all' ? (
+                            <>
+                                <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+                                <p style={{ fontSize: 14, color: C.textMuted }}>No donations found. Post your first surplus food!</p>
+                                <div style={{ marginTop: 16 }}><Btn onClick={() => router.push('/post')}>Post Surplus Food</Btn></div>
+                            </>
+                        ) : (
+                            <>
+                                <div style={{ fontSize: 48, marginBottom: 12 }}>
+                                    {filter === 'available' ? '📦' : filter === 'claimed' ? '🤝' : filter === 'picked_up' ? '✅' : '⏰'}
+                                </div>
+                                <p style={{ fontSize: 14, color: C.textMuted }}>
+                                    No {statusLabels[filter]?.toLowerCase()} donations yet.
+                                </p>
+                                <p style={{ fontSize: 12, color: C.textLight, marginTop: 6 }}>
+                                    {filter === 'claimed' && 'When an NGO claims your food, it will appear here.'}
+                                    {filter === 'picked_up' && 'Completed pickups will show here once NGOs collect your food.'}
+                                    {filter === 'expired' && 'Expired listings will appear here. No expired items — great job! 🎉'}
+                                    {filter === 'available' && 'Post surplus food to see available listings here.'}
+                                </p>
+                                {filter === 'available' && (
+                                    <div style={{ marginTop: 16 }}><Btn onClick={() => router.push('/post')}>Post Surplus Food</Btn></div>
+                                )}
+                            </>
+                        )}
                     </Card>
                 ) : (
                     filtered.map(d => (

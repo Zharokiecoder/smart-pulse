@@ -58,11 +58,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-            if (user) await fetchProfile(user.id);
+        // Safety timeout — never spin forever
+        const safetyTimer = setTimeout(() => {
             setLoading(false);
+        }, 10000);
+
+        const getUser = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                setUser(user);
+                if (user) {
+                    try {
+                        await fetchProfile(user.id);
+                    } catch {
+                        // Profile fetch failed — continue without profile
+                    }
+                }
+            } catch {
+                // Auth check failed — treat as logged out
+            } finally {
+                setLoading(false);
+                clearTimeout(safetyTimer);
+            }
         };
 
         getUser();
@@ -71,7 +88,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             async (event, session) => {
                 setUser(session?.user ?? null);
                 if (session?.user) {
-                    await fetchProfile(session.user.id);
+                    try {
+                        await fetchProfile(session.user.id);
+                    } catch {
+                        // Profile fetch failed
+                    }
                 } else {
                     setProfile(null);
                 }
@@ -79,7 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         );
 
-        return () => subscription.unsubscribe();
+        return () => {
+            subscription.unsubscribe();
+            clearTimeout(safetyTimer);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

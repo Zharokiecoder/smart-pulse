@@ -25,28 +25,32 @@ export default function ProfilePage() {
     useEffect(() => {
         if (!profile) return;
         const fetchStats = async () => {
-            if (isDonor) {
-                const { data: listings } = await supabase.from('food_listings').select('quantity, status').eq('donor_id', profile.id);
-                if (listings) {
-                    setProfileStats({
-                        listings: listings.length,
-                        completed: listings.filter(l => l.status === 'picked_up').length,
-                        rescued: listings.filter(l => l.status === 'picked_up').reduce((s, l) => s + (l.quantity || 0), 0),
-                    });
+            try {
+                if (isDonor) {
+                    const { data: listings } = await supabase.from('food_listings').select('quantity, status').eq('donor_id', profile.id);
+                    if (listings) {
+                        setProfileStats({
+                            listings: listings.length,
+                            completed: listings.filter(l => l.status === 'picked_up').length,
+                            rescued: listings.filter(l => l.status === 'picked_up').reduce((s, l) => s + (l.quantity || 0), 0),
+                        });
+                    }
+                } else {
+                    const { data: pickups } = await supabase.from('pickup_requests').select('status, listing:food_listings(quantity)').eq('ngo_id', profile.id);
+                    if (pickups) {
+                        const completed = pickups.filter(p => p.status === 'completed');
+                        setProfileStats({
+                            listings: pickups.length,
+                            completed: completed.length,
+                            rescued: completed.reduce((s, p) => {
+                                const l = p.listing as unknown as { quantity: number } | null;
+                                return s + (l?.quantity || 0);
+                            }, 0),
+                        });
+                    }
                 }
-            } else {
-                const { data: pickups } = await supabase.from('pickup_requests').select('status, listing:food_listings(quantity)').eq('ngo_id', profile.id);
-                if (pickups) {
-                    const completed = pickups.filter(p => p.status === 'completed');
-                    setProfileStats({
-                        listings: pickups.length,
-                        completed: completed.length,
-                        rescued: completed.reduce((s, p) => {
-                            const l = p.listing as unknown as { quantity: number } | null;
-                            return s + (l?.quantity || 0);
-                        }, 0),
-                    });
-                }
+            } catch {
+                // Stats fetch failed
             }
         };
         fetchStats();

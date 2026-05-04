@@ -37,29 +37,33 @@ export default function NgoDashboard() {
         if (profile.role === 'donor') { router.push('/dashboard'); return; }
 
         const fetchData = async () => {
-            // Fetch available food
-            const { data: foodData } = await supabase
-                .from('food_listings')
-                .select('*, donor:profiles!food_listings_donor_id_fkey(full_name, org_name)')
-                .eq('status', 'available')
-                .order('created_at', { ascending: false })
-                .limit(6);
-            if (foodData) setNearbyFood(foodData as unknown as FoodListing[]);
+            try {
+                // Fetch available food
+                const { data: foodData } = await supabase
+                    .from('food_listings')
+                    .select('*, donor:profiles!food_listings_donor_id_fkey(full_name, org_name)')
+                    .eq('status', 'available')
+                    .order('created_at', { ascending: false })
+                    .limit(6);
+                if (foodData) setNearbyFood(foodData as unknown as FoodListing[]);
 
-            // Fetch pickup stats
-            const { data: pickupsData } = await supabase
-                .from('pickup_requests')
-                .select('status, listing:food_listings(quantity)')
-                .eq('ngo_id', profile.id);
+                // Fetch pickup stats
+                const { data: pickupsData } = await supabase
+                    .from('pickup_requests')
+                    .select('status, listing:food_listings(quantity)')
+                    .eq('ngo_id', profile.id);
 
-            if (pickupsData) {
-                const scheduled = pickupsData.filter(p => p.status === 'scheduled' || p.status === 'pending').length;
-                const completed = pickupsData.filter(p => p.status === 'completed').length;
-                const collected = pickupsData.filter(p => p.status === 'completed').reduce((sum, p) => {
-                    const listing = p.listing as unknown as { quantity: number } | null;
-                    return sum + (listing?.quantity || 0);
-                }, 0);
-                setStats({ available: foodData?.length || 0, scheduled, completed, collected });
+                if (pickupsData) {
+                    const scheduled = pickupsData.filter(p => p.status === 'scheduled' || p.status === 'pending').length;
+                    const completed = pickupsData.filter(p => p.status === 'completed').length;
+                    const collected = pickupsData.filter(p => p.status === 'completed').reduce((sum, p) => {
+                        const listing = p.listing as unknown as { quantity: number } | null;
+                        return sum + (listing?.quantity || 0);
+                    }, 0);
+                    setStats({ available: foodData?.length || 0, scheduled, completed, collected });
+                }
+            } catch {
+                // Data fetch failed — show empty state
             }
         };
         fetchData();

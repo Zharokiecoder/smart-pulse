@@ -37,21 +37,25 @@ export default function MessagesPage() {
     useEffect(() => {
         if (!profile) return;
         const fetchConversations = async () => {
-            const { data } = await supabase
-                .from('conversations')
-                .select('*')
-                .or(`participant_1.eq.${profile.id},participant_2.eq.${profile.id}`)
-                .order('last_message_at', { ascending: false });
+            try {
+                const { data } = await supabase
+                    .from('conversations')
+                    .select('*')
+                    .or(`participant_1.eq.${profile.id},participant_2.eq.${profile.id}`)
+                    .order('last_message_at', { ascending: false });
 
-            if (data) {
-                // Fetch other users' profiles
-                const enriched = await Promise.all(data.map(async (conv) => {
-                    const otherId = conv.participant_1 === profile.id ? conv.participant_2 : conv.participant_1;
-                    const { data: otherUser } = await supabase.from('profiles').select('full_name, org_name, role').eq('id', otherId).single();
-                    return { ...conv, other_user: otherUser || undefined };
-                }));
-                setConversations(enriched);
-                if (enriched.length > 0 && !active) setActive(enriched[0].id);
+                if (data) {
+                    // Fetch other users' profiles
+                    const enriched = await Promise.all(data.map(async (conv) => {
+                        const otherId = conv.participant_1 === profile.id ? conv.participant_2 : conv.participant_1;
+                        const { data: otherUser } = await supabase.from('profiles').select('full_name, org_name, role').eq('id', otherId).single();
+                        return { ...conv, other_user: otherUser || undefined };
+                    }));
+                    setConversations(enriched);
+                    if (enriched.length > 0 && !active) setActive(enriched[0].id);
+                }
+            } catch {
+                // Fetch failed
             }
         };
         fetchConversations();
@@ -61,12 +65,16 @@ export default function MessagesPage() {
     useEffect(() => {
         if (!active) return;
         const fetchMessages = async () => {
-            const { data } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('conversation_id', active)
-                .order('created_at', { ascending: true });
-            if (data) setMessages(data);
+            try {
+                const { data } = await supabase
+                    .from('messages')
+                    .select('*')
+                    .eq('conversation_id', active)
+                    .order('created_at', { ascending: true });
+                if (data) setMessages(data);
+            } catch {
+                // Fetch failed
+            }
         };
         fetchMessages();
 
